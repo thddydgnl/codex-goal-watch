@@ -6,6 +6,10 @@
 
 로컬 실행. 모델 polling 없이 대기. 같은 논리적 턴에서 재개.
 
+### Keep Codex from waking up just to say “still running.”
+
+Run locally. Wait without model polling. Resume in the same logical turn.
+
 [![Tests](https://github.com/thddydgnl/codex-goal-watch/actions/workflows/test.yml/badge.svg)](https://github.com/thddydgnl/codex-goal-watch/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Codex 0.133+](https://img.shields.io/badge/Codex-0.133%2B-111827)](https://github.com/openai/codex)
