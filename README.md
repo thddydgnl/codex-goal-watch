@@ -176,15 +176,6 @@ Stop hook은 미완료 상태의 조기 종료를 최대 세 번 차단합니다
 구현 확인: [`server.py`](plugins/codex-one-turn/mcp/server.py) ·
 [`oneturn_hook.py`](plugins/codex-one-turn/hooks/oneturn_hook.py)
 
-## 현재 한계
-
-- 같은 턴의 연속성은 Codex 프로세스와 세션이 실행 중일 때만 보장됩니다.
-- Codex 재시작 후 turn 복구는 v0.1에 포함되지 않습니다.
-- Windows는 아직 지원하지 않습니다.
-- 하나의 논리적 턴이 모델 호출 한 번을 뜻하지는 않습니다. 분석과 오류 수정에는
-  여러 모델 단계가 필요할 수 있지만, 프로세스를 기다리는 동안에는 polling하지 않습니다.
-- 공개 Before/After benchmark는 재현 가능한 E2E 측정이 끝난 뒤 게시합니다.
-
 ## 제거
 
 Codex에 같은 저장소 URL과 함께 제거를 요청하세요.
@@ -387,16 +378,6 @@ fails open so a plugin bug cannot trap a task forever.
 
 Read the implementation: [`server.py`](plugins/codex-one-turn/mcp/server.py) ·
 [`oneturn_hook.py`](plugins/codex-one-turn/hooks/oneturn_hook.py)
-
-## Current limits
-
-- Same-turn continuity requires the Codex process and session to stay alive.
-- Restart recovery is not part of v0.1.
-- Windows is not supported yet.
-- One logical turn does not mean one model call. Analysis and fixes can still
-  require multiple model steps; waiting itself does not poll the model.
-- The public Before/After benchmark will be published after the E2E harness is
-  reproducible.
 
 ## Uninstall
 
