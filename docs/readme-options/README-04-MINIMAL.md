@@ -45,7 +45,7 @@ new task.
 
 Codex를 재시작한 뒤 `/hooks`에서 hook 두 개를 검토·신뢰하고 새 task를 여세요.
 
-Requires Codex 0.133+, Python 3.10+, macOS or Linux.
+Requires Codex 0.133+, Python 3.10+, Windows, macOS, or Linux.
 
 ## Use / 사용
 
@@ -97,10 +97,10 @@ No duration specified? The default deadline is **7 days**.
 ## Limits
 
 Same-turn continuity requires the Codex process to remain open. Restart
-recovery and Windows support are not included in v0.1.
+recovery is not included in v0.1. Windows, macOS, and Linux are supported.
 
-Codex 프로세스가 종료되면 같은 turn ID 복구는 보장하지 않습니다. v0.1은 Windows를
-지원하지 않습니다.
+Codex 프로세스가 종료되면 같은 turn ID 복구는 보장하지 않습니다. Windows,
+macOS, Linux를 지원합니다.
 
 ## Remove / 제거
 

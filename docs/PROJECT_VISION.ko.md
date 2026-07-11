@@ -333,11 +333,10 @@ OneTurn이 로컬 작업 완료를 기다리는 중
 - 같은 논리적 turn ID 유지 검증
 - 대기 중 모델 호출 0회 검증
 - 설치, 진단, 제거 흐름
-- macOS, Linux 우선 지원
+- Windows, macOS, Linux 지원
 
 ### 후속 버전
 
-- Windows 지원
 - 여러 job의 병렬 실행
 - GitHub Actions, 배포 서비스 등 원격 job 대기
 - 앱 재시작 후 job 상태 복구
@@ -457,7 +456,7 @@ OneTurn이 로컬 작업 완료를 기다리는 중
 - Ask와 직접 명시 두 가지 활성화 방식
 - 기존 `goal-watch` 완전 제거 migration
 - 상태 표시와 취소 UX
-- macOS/Linux 릴리스 자동 빌드 및 checksum
+- Windows/macOS/Linux 테스트와 릴리스 자동화
 - 한국어/영어 README와 데모
 
 ### Phase 3 — 공개 베타
@@ -469,7 +468,7 @@ OneTurn이 로컬 작업 완료를 기다리는 중
 
 ### Phase 4 — 확장
 
-- Windows 및 원격 job
+- 원격 job
 - durable job 상태
 - 재시작 복구
 - 공식 생태계 배포 및 upstream 제안

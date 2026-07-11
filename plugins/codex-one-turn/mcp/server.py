@@ -342,17 +342,44 @@ def terminate_process(process: subprocess.Popen[bytes]) -> None:
         return
     try:
         if os.name == "nt":
-            process.terminate()
+            terminate_windows_process_tree(process, force=False)
         else:
             os.killpg(process.pid, signal.SIGTERM)
         process.wait(timeout=3)
-    except (ProcessLookupError, subprocess.TimeoutExpired):
+    except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
         try:
             if os.name == "nt":
-                process.kill()
+                terminate_windows_process_tree(process, force=True)
             else:
                 os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
+            process.wait(timeout=3)
+        except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
+            if process.poll() is None:
+                process.kill()
+
+
+def terminate_windows_process_tree(
+    process: subprocess.Popen[bytes], *, force: bool
+) -> None:
+    """Terminate a Windows process and every descendant created beneath it."""
+    command = ["taskkill.exe", "/PID", str(process.pid), "/T"]
+    if force:
+        command.append("/F")
+    try:
+        subprocess.run(
+            command,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        if process.poll() is None:
+            if force:
+                process.kill()
+            else:
+                process.terminate()
             pass
 
 

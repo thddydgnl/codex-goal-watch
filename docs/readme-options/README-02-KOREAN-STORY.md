@@ -131,13 +131,13 @@ Stop hook은 최대 세 번만 종료를 막습니다. hook 오류나 반복 실
 
 ## 현재 지원 범위
 
-- macOS·Linux
+- Windows·macOS·Linux
 - 로컬 단일 프로세스
 - Codex 프로세스와 세션이 살아 있는 동안 동일 turn 유지
 - exit code·deadline·필수 artifact 검증
 - 사용자 취소
 
-Codex 종료 후 동일 turn 복구와 Windows 지원은 후속 버전 범위입니다. 실제 공개
+Codex 종료 후 동일 turn 복구는 후속 버전 범위입니다. 실제 공개
 benchmark는 E2E 측정이 재현 가능해진 뒤 숫자와 함께 게시합니다.
 
 ## 제거
@@ -160,7 +160,7 @@ Use OneTurn to run the full test suite, fix every failure, and verify the result
 ```
 
 Or let the Skill ask before a likely long command. There is no unapproved Auto
-mode. The default deadline is seven days. macOS and Linux are supported in v0.1.
+mode. The default deadline is seven days. Windows, macOS, and Linux are supported in v0.1.
 
 ## 함께 만들어요
 

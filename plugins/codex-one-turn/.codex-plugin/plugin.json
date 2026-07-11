@@ -1,6 +1,6 @@
 {
   "name": "codex-one-turn",
-  "version": "0.1.0+codex.20260711133451",
+  "version": "0.1.0+codex.20260711141917",
   "description": "Wait for long-running local jobs without repeated polling turns.",
   "author": {
     "name": "thddydgnl",

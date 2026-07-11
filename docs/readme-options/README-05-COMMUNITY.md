@@ -87,7 +87,7 @@ There is no silent Auto mode. User approval is part of the contract.
 - UserPromptSubmit activation hook
 - Stop completion gate with a three-block fail-open limit
 - migration that removes the old shell-based goal watcher
-- macOS and Linux CI
+- Windows, macOS, and Linux CI
 
 ## What needs community validation
 
@@ -154,11 +154,11 @@ Current boundaries:
 - same-session turn continuation
 - exit, deadline, artifact, and cancellation handling
 - Ask and direct activation
+- Windows, macOS, and Linux support
 
 ### Next
 
 - reproducible E2E benchmark and demo GIF
-- Windows process supervision
 - parallel job groups
 - better progress UI without model-visible polling
 - durable job metadata
@@ -179,7 +179,7 @@ OneTurn으로 전체 테스트를 실행하고 실패를 모두 고친 뒤 결�
 ```
 
 공식 Codex Desktop과 CLI를 그대로 사용하며 별도 Codex 프로그램을 실행하지 않습니다.
-설치 후 `/hooks`에서 코드를 직접 검토하고 신뢰해야 합니다. 현재 macOS와 Linux를
+설치 후 `/hooks`에서 코드를 직접 검토하고 신뢰해야 합니다. Windows, macOS, Linux를
 지원하며 Codex 재시작 후 같은 turn ID 복구는 아직 지원하지 않습니다.
 
 한국어 Issue와 PR도 환영합니다.

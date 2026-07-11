@@ -57,7 +57,7 @@ Then:
 2. Run `/hooks` in Codex CLI.
 3. Review and trust the two OneTurn hooks.
 
-Requirements: Codex CLI 0.133+, Python 3.10+, macOS or Linux.
+Requirements: Codex CLI 0.133+, Python 3.10+, Windows, macOS, or Linux.
 
 ## Use it
 
@@ -141,7 +141,7 @@ Read the implementation: [`server.py`](plugins/codex-one-turn/mcp/server.py) ·
 
 - Same-turn continuity requires the Codex process and session to stay alive.
 - Restart recovery is not part of v0.1.
-- Windows is not supported yet.
+- Windows, macOS, and Linux are supported.
 - One logical turn does not mean one model call. Analysis and fixes can still
   require multiple model steps; waiting itself does not poll the model.
 - The public Before/After benchmark will be published after the E2E harness is

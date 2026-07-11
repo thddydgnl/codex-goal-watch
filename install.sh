@@ -62,13 +62,14 @@ uninstall() {
 [ "$#" -eq 0 ] || fail "unknown option: $1"
 
 command -v codex >/dev/null 2>&1 || fail "Codex CLI is required"
-command -v python3 >/dev/null 2>&1 || fail "Python 3 is required"
+command -v python >/dev/null 2>&1 || \
+  fail "Python 3.10 or newer must be available as the 'python' command"
 
 CODEX_VERSION="$(codex --version | awk '{print $2}')"
 version_at_least "$CODEX_VERSION" "$MIN_CODEX_VERSION" || \
   fail "Codex $MIN_CODEX_VERSION or newer is required (found $CODEX_VERSION)"
 
-PYTHON_VERSION="$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
+PYTHON_VERSION="$(python -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
 version_at_least "$PYTHON_VERSION" "3.10.0" || \
   fail "Python 3.10 or newer is required (found $PYTHON_VERSION)"
 

@@ -7,8 +7,10 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -170,6 +172,93 @@ class OneTurnTests(unittest.TestCase):
         finally:
             server.shutdown()
         self.assertEqual(result["structuredContent"]["status"], "cancelled")
+
+    def test_windows_termination_targets_the_process_tree(self) -> None:
+        module = load_server_module()
+        process = mock.Mock()
+        process.pid = 4242
+        process.poll.return_value = None
+        with mock.patch.object(module.subprocess, "run") as run:
+            module.terminate_windows_process_tree(process, force=True)
+        run.assert_called_once_with(
+            ["taskkill.exe", "/PID", "4242", "/T", "/F"],
+            check=False,
+            stdin=module.subprocess.DEVNULL,
+            stdout=module.subprocess.DEVNULL,
+            stderr=module.subprocess.DEVNULL,
+            timeout=5,
+        )
+
+    @unittest.skipUnless(os.name == "nt", "Windows process-tree integration test")
+    def test_windows_cancel_terminates_descendants(self) -> None:
+        import ctypes
+
+        activation_id = self.activate()
+        module = load_server_module()
+        server = module.OneTurnServer()
+        cancel = threading.Event()
+        workdir = Path(self.temp.name) / "windows-tree"
+        workdir.mkdir()
+        child_pid_path = workdir / "child.pid"
+        results: list[dict] = []
+        parent_script = (
+            "import pathlib, subprocess, sys, time; "
+            "child=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+            "pathlib.Path('child.pid').write_text(str(child.pid)); "
+            "time.sleep(60)"
+        )
+
+        thread = threading.Thread(
+            target=lambda: results.append(
+                server.run_tool(
+                    {
+                        "activation_id": activation_id,
+                        "command": [sys.executable, "-c", parent_script],
+                        "cwd": str(workdir),
+                        "timeout_seconds": 60,
+                    },
+                    "request-windows-tree",
+                    cancel,
+                )
+            )
+        )
+        child_pid = 0
+        try:
+            thread.start()
+            deadline = time.monotonic() + 10
+            while not child_pid_path.exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(child_pid_path.exists(), "child process did not start")
+            child_pid = int(child_pid_path.read_text())
+            cancel.set()
+            thread.join(timeout=15)
+            self.assertFalse(thread.is_alive(), "OneTurn cancellation did not return")
+            self.assertEqual(results[0]["structuredContent"]["status"], "cancelled")
+
+            def descendant_is_active() -> bool:
+                process = ctypes.windll.kernel32.OpenProcess(0x1000, False, child_pid)
+                if not process:
+                    return False
+                exit_code = ctypes.c_ulong()
+                ctypes.windll.kernel32.GetExitCodeProcess(process, ctypes.byref(exit_code))
+                ctypes.windll.kernel32.CloseHandle(process)
+                return exit_code.value == 259
+
+            deadline = time.monotonic() + 5
+            while descendant_is_active() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertFalse(descendant_is_active(), "descendant process is still active")
+        finally:
+            cancel.set()
+            thread.join(timeout=5)
+            server.shutdown()
+            if child_pid:
+                subprocess.run(
+                    ["taskkill.exe", "/PID", str(child_pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
 
 
 if __name__ == "__main__":

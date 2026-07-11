@@ -167,7 +167,7 @@ all requested analysis and verification, then call `finish`.
 | Stop continuation keeps the current Codex turn context | Supported by current Codex hook lifecycle |
 | Default job deadline is seven days | Implemented and tested |
 | Same turn survives a Codex process restart | Not supported |
-| Windows process-group semantics | Not supported in v0.1 |
+| Windows process-tree cancellation | Implemented with `taskkill /T` and CI-tested |
 | Every long command is detected automatically | Intentionally not supported |
 | Public token/turn reduction percentage | Not claimed before reproducible E2E measurement |
 
@@ -207,7 +207,7 @@ curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/master/i
 ## Contributing
 
 High-value contributions include reproducible turn traces, cancellation edge
-cases, Windows process supervision, restart recovery design, and independent
+cases, cross-platform process supervision, restart recovery design, and independent
 security review.
 
 ## License
