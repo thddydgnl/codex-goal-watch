@@ -37,15 +37,25 @@ Codex가 blocking 명령 하나(`wait_for.sh`)를 실행합니다. 이 스크립
 curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash
 ```
 
+**권장:** `~/.codex/AGENTS.md`에 상시 적용 규칙까지 추가하면 goal마다 스킬을
+언급할 필요 없이 **모든 세션에 결정론적으로** 적용됩니다. 스킬 자동 발견은
+요청 내용이 스킬 설명과 매칭될 때 동작하는 확률적 방식이지만, AGENTS.md는
+매 세션 무조건 로드되기 때문입니다:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash -s -- --agents-md
+```
+
 또는 수동으로:
 
 ```bash
 git clone https://github.com/thddydgnl/codex-goal-watch.git
-cd codex-goal-watch && ./install.sh
+cd codex-goal-watch && ./install.sh --agents-md
 ```
 
-`~/.codex/skills/goal-watch`에 설치됩니다 (`$CODEX_HOME` 지원).
-bash와 coreutils만 있으면 되고 macOS·Linux에서 동작합니다.
+`~/.codex/skills/goal-watch`에 설치됩니다 (`$CODEX_HOME` 지원). AGENTS.md
+블록은 마커로 구분되어 있고 중복 실행해도 한 번만 추가되며, 블록을 지우면
+원상복구됩니다. bash와 coreutils만 있으면 되고 macOS·Linux에서 동작합니다.
 
 ## 사용법
 
@@ -101,9 +111,17 @@ wait_for.sh --until "curl -sf http://localhost:8000/health" --interval 60
 # Slurm job이 큐에서 빠질 때까지 대기
 wait_for.sh --until '! squeue -j 998877 -h | grep -q .' --interval 600
 
-# 몇 시간짜리 job은 1시간 단위로 끊어서 대기: 시간당 턴 1개
-wait_for.sh --done-file DONE --log train.log --max-wait 3600   # exit 124면 재실행
+# 끊어서 대기 (shell tool 타임아웃에 안전): exit 124가 나오면 에이전트가
+# 같은 턴 안에서 재실행 — 폴링하러 턴을 끝내는 일이 없음
+wait_for.sh --done-file DONE --log train.log --interval 60 --max-wait 240 --quiet
 ```
+
+> **왜 끊어서 대기하나?** Codex의 shell tool에는 명령별 `timeout_ms`가 있고,
+> 모델이 몇 시간짜리 대기에 맞게 충분히 크게 설정해준다는 보장이 없습니다.
+> 대기 호출 하나를 4분 이내로 유지하고 exit 124가 나오면 같은 턴 안에서
+> 재실행하는 방식은 이 타임아웃과 무관하게 동작하면서도, 폴링을 위해 턴을
+> 끝내는 일은 여전히 없습니다. SKILL.md가 에이전트에게 정확히 이 동작을
+> 지시합니다.
 
 ## 폴링 자체를 없애는 방법
 

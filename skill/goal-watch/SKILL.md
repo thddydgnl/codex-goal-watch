@@ -28,9 +28,18 @@ bash "$(dirname "$0")/scripts/wait_for.sh" --done-file <marker> --log <logfile>
 (When invoking from a goal, use the installed path
 `~/.codex/skills/goal-watch/scripts/wait_for.sh`.)
 
-The script polls internally (default every 300s), prints a heartbeat line so
-the harness sees activity, and only returns when there is something worth
-acting on:
+**Set a generous tool timeout when invoking it.** The shell tool's own
+`timeout_ms` kills commands that outlive it, and the default is far shorter
+than a training run. Either pass a `timeout_ms` comfortably above the longest
+expected wait, or — more robustly — use chunked waiting: call with
+`--max-wait 240` (safely under typical tool timeouts) and on exit 124
+immediately re-run the same command **in the same turn, without emitting any
+status text between chunks**. Re-running a tool call inside the turn costs a
+few tokens; ending the turn costs a goal continuation cycle plus a report.
+
+The script polls internally (default every 300s; use `--interval 60` with
+chunked waits), prints a heartbeat line so the harness sees activity, and only
+returns when there is something worth acting on:
 
 | Exit | Meaning | What to do |
 |------|---------|------------|
@@ -49,7 +58,9 @@ While a job is running, do **not** produce interim status updates
 
 ## Recipes
 
-**ML training run** (done marker + error watch):
+**ML training run** (done marker + error watch). Launch the job detached
+(`nohup` or `setsid`) in its own tool call first, so that even if a later
+wait call hits a tool timeout, the job itself is never killed:
 
 ```bash
 nohup python train.py --config exp1.yaml > runs/exp1/train.log 2>&1 &
@@ -66,13 +77,16 @@ be modified, wrap it: `python train.py ... && touch runs/exp1/DONE`.
 **Foreground alternative** (simplest when the session is stable): just run the
 job in the foreground. The turn ends exactly when the job ends — zero polling.
 
-**Chunked long waits** (multi-hour jobs, cautious about one giant command):
+**Chunked long waits** (multi-hour jobs, or when unsure about tool timeouts):
 
 ```bash
-~/.codex/skills/goal-watch/scripts/wait_for.sh --done-file DONE --log train.log --max-wait 3600
+~/.codex/skills/goal-watch/scripts/wait_for.sh --done-file DONE --log train.log \
+  --interval 60 --max-wait 240 --quiet
 ```
 
-On exit 124, run it again. One turn per hour instead of one turn per minute.
+On exit 124, re-run the exact same command in the same turn — no status text,
+no ending the turn. Repeat until exit 0 or 1. The turn stays alive for the
+whole wait; only the final result gets reported.
 
 **Custom conditions** (remote queue, HTTP health check, GPU idle):
 

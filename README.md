@@ -37,15 +37,25 @@ One turn per wait, not one turn per poll.
 curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash
 ```
 
+**Recommended:** also add an always-on rule to `~/.codex/AGENTS.md`, so the
+no-polling behavior applies to *every* goal deterministically — skill
+auto-discovery matches your request against the skill description, which is
+reliable but probabilistic, while AGENTS.md is loaded into every session:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash -s -- --agents-md
+```
+
 Or manually:
 
 ```bash
 git clone https://github.com/thddydgnl/codex-goal-watch.git
-cd codex-goal-watch && ./install.sh
+cd codex-goal-watch && ./install.sh --agents-md
 ```
 
 This copies the skill to `~/.codex/skills/goal-watch` (respects `$CODEX_HOME`).
-No dependencies beyond bash and coreutils; works on macOS and Linux.
+The AGENTS.md block is marker-delimited and idempotent; delete the block to
+undo. No dependencies beyond bash and coreutils; works on macOS and Linux.
 
 ## Use
 
@@ -101,9 +111,16 @@ wait_for.sh --until "curl -sf http://localhost:8000/health" --interval 60
 # Wait for a Slurm job to leave the queue
 wait_for.sh --until '! squeue -j 998877 -h | grep -q .' --interval 600
 
-# Chunked waiting for multi-hour jobs: one turn per hour
-wait_for.sh --done-file DONE --log train.log --max-wait 3600   # rerun on exit 124
+# Chunked waiting (robust against shell-tool timeouts): the agent re-runs
+# this in the same turn on exit 124 — the turn never ends just to poll
+wait_for.sh --done-file DONE --log train.log --interval 60 --max-wait 240 --quiet
 ```
+
+> **Why chunked?** Codex's shell tool has its own per-command `timeout_ms`,
+> and the model doesn't always set it high enough for a multi-hour wait.
+> Keeping each wait call under ~4 minutes and re-running on exit 124 inside
+> the same turn is immune to that, while still never ending a turn to poll.
+> The SKILL.md instructs the agent to do exactly this.
 
 ## Zero-polling alternative
 
