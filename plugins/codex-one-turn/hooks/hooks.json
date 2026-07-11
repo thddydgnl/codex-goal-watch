@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/oneturn_hook.py\"",
+            "timeout": 5,
+            "statusMessage": "Checking OneTurn activation"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/oneturn_hook.py\"",
+            "timeout": 5,
+            "statusMessage": "Verifying OneTurn completion"
+          }
+        ]
+      }
+    ]
+  }
+}

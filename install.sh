@@ -1,85 +1,106 @@
 #!/usr/bin/env bash
-# Installs the goal-watch skill into ~/.codex/skills (or $CODEX_HOME/skills).
-#
-#   curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash
-#
-# Add --agents-md to also append an always-on rule to ~/.codex/AGENTS.md so the
-# skill applies deterministically to every session (recommended):
-#
-#   curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash -s -- --agents-md
-#
-# or from a local clone:
-#
-#   ./install.sh [--agents-md]
 set -euo pipefail
 
-REPO="thddydgnl/codex-goal-watch"
+PLUGIN_NAME="codex-one-turn"
+MARKETPLACE_NAME="codex-one-turn"
+REMOTE_SOURCE="thddydgnl/codex-goal-watch"
+MIN_CODEX_VERSION="0.133.0"
 CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
-DEST="$CODEX_DIR/skills/goal-watch"
 
-WITH_AGENTS_MD=0
-for arg in "$@"; do
-  case "$arg" in
-    --agents-md) WITH_AGENTS_MD=1 ;;
-    *) echo "install.sh: unknown option: $arg" >&2; exit 2 ;;
-  esac
-done
+say() { printf '%s\n' "$*"; }
+fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+version_at_least() {
+  local current="$1" minimum="$2" index
+  local IFS=.
+  local -a have need
+  read -r -a have <<<"$current"
+  read -r -a need <<<"$minimum"
+  for index in 0 1 2; do
+    local h="${have[$index]:-0}" n="${need[$index]:-0}"
+    h="${h%%[^0-9]*}"; n="${n%%[^0-9]*}"
+    [ "${h:-0}" -gt "${n:-0}" ] && return 0
+    [ "${h:-0}" -lt "${n:-0}" ] && return 1
+  done
+  return 0
+}
+
+remove_legacy_agents_block() {
+  local file="$1" tmp
+  [ -f "$file" ] || return 0
+  grep -q '<!-- goal-watch:start -->' "$file" || return 0
+  tmp="$(mktemp)"
+  awk '
+    /<!-- goal-watch:start -->/ { skip=1; next }
+    /<!-- goal-watch:end -->/ { skip=0; next }
+    !skip { print }
+  ' "$file" >"$tmp"
+  mv "$tmp" "$file"
+  say "Removed legacy goal-watch block from $file"
+}
+
+remove_legacy_goal_watch() {
+  local legacy="$CODEX_DIR/skills/goal-watch"
+  if [ -d "$legacy" ]; then
+    rm -rf "$legacy"
+    say "Removed legacy goal-watch skill from $legacy"
+  fi
+  remove_legacy_agents_block "$CODEX_DIR/AGENTS.md"
+  remove_legacy_agents_block "$CODEX_DIR/AGENTS.override.md"
+}
+
+uninstall() {
+  if command -v codex >/dev/null 2>&1; then
+    codex plugin remove "$PLUGIN_NAME@$MARKETPLACE_NAME" >/dev/null 2>&1 || true
+    codex plugin marketplace remove "$MARKETPLACE_NAME" >/dev/null 2>&1 || true
+  fi
+  remove_legacy_goal_watch
+  say "Codex OneTurn has been uninstalled. Job logs were preserved."
+}
+
+[ "${1:-}" = "--uninstall" ] && { uninstall; exit 0; }
+[ "$#" -eq 0 ] || fail "unknown option: $1"
+
+command -v codex >/dev/null 2>&1 || fail "Codex CLI is required"
+command -v python3 >/dev/null 2>&1 || fail "Python 3 is required"
+
+CODEX_VERSION="$(codex --version | awk '{print $2}')"
+version_at_least "$CODEX_VERSION" "$MIN_CODEX_VERSION" || \
+  fail "Codex $MIN_CODEX_VERSION or newer is required (found $CODEX_VERSION)"
+
+PYTHON_VERSION="$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
+version_at_least "$PYTHON_VERSION" "3.10.0" || \
+  fail "Python 3.10 or newer is required (found $PYTHON_VERSION)"
+
+remove_legacy_goal_watch
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
-
-if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skill/goal-watch" ]; then
-  SRC="$SCRIPT_DIR/skill/goal-watch"
-  TMP=""
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/.agents/plugins/marketplace.json" ]; then
+  SOURCE="$SCRIPT_DIR"
+  SOURCE_KIND="local"
 else
-  TMP="$(mktemp -d)"
-  trap '[ -n "$TMP" ] && rm -rf "$TMP"' EXIT
-  echo "Downloading $REPO ..."
-  if command -v git >/dev/null 2>&1; then
-    git clone --quiet --depth 1 "https://github.com/$REPO.git" "$TMP/repo"
-  else
-    curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz -C "$TMP"
-    mv "$TMP"/*-main "$TMP/repo"
-  fi
-  SRC="$TMP/repo/skill/goal-watch"
+  SOURCE="$REMOTE_SOURCE"
+  SOURCE_KIND="git"
 fi
 
-mkdir -p "$DEST"
-cp -R "$SRC/." "$DEST/"
-chmod +x "$DEST/scripts/wait_for.sh"
-
-echo "Installed goal-watch skill to: $DEST"
-
-AGENTS_MD="$CODEX_DIR/AGENTS.md"
-MARKER_START="<!-- goal-watch:start -->"
-if [ "$WITH_AGENTS_MD" -eq 1 ]; then
-  if [ -f "$AGENTS_MD" ] && grep -qF "$MARKER_START" "$AGENTS_MD"; then
-    echo "AGENTS.md rule already present; skipping."
+if codex plugin marketplace list | awk 'NR > 1 {print $1}' | grep -qx "$MARKETPLACE_NAME"; then
+  if [ "$SOURCE_KIND" = "git" ]; then
+    codex plugin marketplace upgrade "$MARKETPLACE_NAME" >/dev/null
+    say "Updated marketplace: $MARKETPLACE_NAME"
   else
-    [ -f "$AGENTS_MD" ] && [ -s "$AGENTS_MD" ] && printf '\n' >> "$AGENTS_MD"
-    cat >> "$AGENTS_MD" <<'EOF'
-<!-- goal-watch:start -->
-## Long-running jobs (goal-watch skill)
-
-When a task or /goal involves waiting on a long-running process (training run,
-build, deploy, batch job), never end a turn just to poll status. Follow
-~/.codex/skills/goal-watch/SKILL.md: block inside the current turn with
-scripts/wait_for.sh (chunked with --max-wait 240, re-run on exit 124 in the
-same turn). Do not emit interim "still running" reports — report only on
-completion, failure, or when deciding what to do after a wait budget expires.
-<!-- goal-watch:end -->
-EOF
-    echo "Appended always-on rule to: $AGENTS_MD"
-    echo "  (remove the goal-watch block from that file to undo)"
+    say "Using local marketplace: $MARKETPLACE_NAME"
   fi
 else
-  echo
-  echo "Tip: re-run with --agents-md to add an always-on rule to $AGENTS_MD"
-  echo "     so the skill applies to every goal without being mentioned."
+  codex plugin marketplace add "$SOURCE" >/dev/null
+  say "Added marketplace: $MARKETPLACE_NAME"
 fi
 
-echo
-echo "Try it in Codex:"
-echo "  /goal-watch                       # invoke the skill directly"
-echo "  /goal <objective that involves waiting on a long job>"
-echo
-echo "Uninstall with: rm -rf \"$DEST\""
+codex plugin add "$PLUGIN_NAME@$MARKETPLACE_NAME" >/dev/null
+say "Installed plugin: $PLUGIN_NAME"
+say ""
+say "Next steps:"
+say "  1. Restart Codex and start a new task."
+say "  2. In Codex CLI, open /hooks and trust the two OneTurn hooks."
+say "  3. Ask normally, or write: OneTurn으로 이 작업을 실행해줘."
+say ""
+say "Uninstall: $0 --uninstall"

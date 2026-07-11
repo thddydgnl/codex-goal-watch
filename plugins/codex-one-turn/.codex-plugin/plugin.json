@@ -1,0 +1,35 @@
+{
+  "name": "codex-one-turn",
+  "version": "0.1.0+codex.20260711133451",
+  "description": "Wait for long-running local jobs without repeated polling turns.",
+  "author": {
+    "name": "thddydgnl",
+    "url": "https://github.com/thddydgnl"
+  },
+  "homepage": "https://github.com/thddydgnl/codex-goal-watch",
+  "repository": "https://github.com/thddydgnl/codex-goal-watch",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "goals",
+    "long-running",
+    "one-turn"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codex OneTurn",
+    "shortDescription": "Keep long-running jobs in one logical turn",
+    "longDescription": "Runs approved long jobs locally, waits without model polling, and resumes work in the same Codex turn.",
+    "developerName": "thddydgnl",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Execute"
+    ],
+    "defaultPrompt": [
+      "Use OneTurn to run this long build and finish verification.",
+      "OneTurn\uc73c\ub85c \uc774 \ud559\uc2b5\uc744 \uc644\ub8cc\ud558\uace0 \uacb0\uacfc\uae4c\uc9c0 \uac80\uc99d\ud574\uc918."
+    ]
+  }
+}
