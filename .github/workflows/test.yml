@@ -1,0 +1,37 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        python-version: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile Python sources
+        run: >-
+          python -m py_compile
+          plugins/codex-one-turn/lib/state_store.py
+          plugins/codex-one-turn/hooks/oneturn_hook.py
+          plugins/codex-one-turn/mcp/server.py
+          tests/test_one_turn.py
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Validate shell and JSON files
+        run: |
+          bash -n install.sh
+          python -m json.tool plugins/codex-one-turn/.codex-plugin/plugin.json >/dev/null
+          python -m json.tool plugins/codex-one-turn/.mcp.json >/dev/null
+          python -m json.tool plugins/codex-one-turn/hooks/hooks.json >/dev/null
+          python -m json.tool .agents/plugins/marketplace.json >/dev/null

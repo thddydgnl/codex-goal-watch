@@ -1,142 +1,156 @@
-# codex-goal-watch
+# Codex OneTurn
 
-**Codex `/goal`이 "아직 실행 중" 확인 턴으로 사용량을 태우는 것을 막아주는 스킬입니다.**
+공식 Codex Desktop과 CLI에서 장기 작업을 기다리는 동안 반복적인
+“아직 실행 중” Goal turn과 모델 호출을 만들지 않는 플러그인입니다.
 
-[English README](README.md)
+[English](README.md) · [프로젝트 기획서](docs/PROJECT_VISION.ko.md)
 
-## 문제
+> 비공식 커뮤니티 프로젝트이며 OpenAI의 공식 제품이 아닙니다.
 
-Codex `/goal`은 턴이 끝날 때마다 계속할지 판단하는 구조입니다. 학습(training),
-긴 빌드, 배포처럼 오래 걸리는 작업을 감시시키면 이렇게 됩니다:
+## 다음 README 선택하기
 
+GitHub 공개용 README 후보 5개를 직접 확인할 수 있습니다.
+
+1. [Global Launch](docs/readme-options/README-01-GLOBAL-LAUNCH.md) — 해외 노출과 Star 확보 중심 추천안
+2. [Korean Story](docs/readme-options/README-02-KOREAN-STORY.md) — 국내 바이브코더가 공감하기 쉬운 서사형
+3. [Engineering Trust](docs/readme-options/README-03-ENGINEERING-TRUST.md) — 아키텍처·보장 범위·보안 중심
+4. [Minimal](docs/readme-options/README-04-MINIMAL.md) — 짧고 빠른 한영 병기형
+5. [Community](docs/readme-options/README-05-COMMUNITY.md) — 초기 사용자와 기여자 모집형
+
+[5개 후보 비교표 보기 →](docs/readme-options/README.md)
+
+## 동작 방식
+
+```text
+Codex 모델
+  → OneTurn run 도구 호출
+  → 로컬 프로세스 실행 ─────────────→ 종료 이벤트
+       대기 중 모델 호출 0회
+       추가 Goal turn 0회
+  → 같은 Codex turn에서 결과 분석
+  → 최종 검증
+  → OneTurn finish
+  → turn 종료
 ```
-30초 동안 작업     → "job 정상 실행 중, heartbeat 정상"
-1분 21초 동안 작업 → "계속 실행 중, stall 아님"
-29초 동안 작업     → "기술 오류 아직 없음, 감시 유지"
-2분 25초 동안 작업 → "첫 checkpoint 대기 중"
-...
-```
 
-짧은 턴 수십 개가 토큰과 요청 한도를 소모하면서 "아직 실행 중"이라는 말만
-반복합니다. 이 주기를 조절하는 config 옵션은 존재하지 않습니다 — goal의
-동작 방식 자체가 이렇습니다.
+`run` MCP 도구 호출 자체가 프로세스 종료까지 반환하지 않습니다. 모델은 기다리는
+동안 다시 실행되지 않습니다. 모델이 완료 전에 턴을 끝내려 하면 Stop hook이 최대
+세 번 같은 turn ID에서 continuation을 주입합니다.
 
-## 해결
+## 요구 사항
 
-`goal-watch`는 대기를 **턴 사이가 아니라 턴 안으로** 옮기는
-[Agent Skill](https://agentskills.io)입니다. 턴을 끝내고 다시 확인하는 대신,
-Codex가 blocking 명령 하나(`wait_for.sh`)를 실행합니다. 이 스크립트는 내부에서
-폴링하다가 job이 **완료**되거나 **실패**하거나 **최대 대기 시간**이 지났을 때만
-반환됩니다.
-
-폴링 1번당 턴 1개가 아니라, **대기 1번당 턴 1개**가 됩니다.
+- Codex CLI `0.133.0` 이상
+- macOS 또는 Linux
+- Python 3.10 이상
+- Codex hooks 기능 활성화(기본값)
 
 ## 설치
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash
-```
-
-**권장:** `~/.codex/AGENTS.md`에 상시 적용 규칙까지 추가하면 goal마다 스킬을
-언급할 필요 없이 **모든 세션에 결정론적으로** 적용됩니다. 스킬 자동 발견은
-요청 내용이 스킬 설명과 매칭될 때 동작하는 확률적 방식이지만, AGENTS.md는
-매 세션 무조건 로드되기 때문입니다:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash -s -- --agents-md
-```
-
-또는 수동으로:
+저장소를 clone한 경우:
 
 ```bash
 git clone https://github.com/thddydgnl/codex-goal-watch.git
-cd codex-goal-watch && ./install.sh --agents-md
+cd codex-goal-watch
+./install.sh
 ```
 
-`~/.codex/skills/goal-watch`에 설치됩니다 (`$CODEX_HOME` 지원). AGENTS.md
-블록은 마커로 구분되어 있고 중복 실행해도 한 번만 추가되며, 블록을 지우면
-원상복구됩니다. bash와 coreutils만 있으면 되고 macOS·Linux에서 동작합니다.
-
-## 사용법
-
-설치하면 goal이 긴 작업을 기다려야 할 때 Codex가 자동으로 이 스킬을 참고합니다.
-직접 호출할 수도 있습니다:
-
-```
-/goal-watch
-/goal Idea 1의 세 variant를 순서대로 학습시키고 strict finalization까지 진행해
-```
-
-스킬이 Codex에게 가르치는 대기 패턴:
+한 줄 설치:
 
 ```bash
-nohup python train.py --config exp1.yaml > runs/exp1/train.log 2>&1 &
-echo $! > runs/exp1/pid
-~/.codex/skills/goal-watch/scripts/wait_for.sh \
-  --done-file runs/exp1/DONE \
-  --pid "$(cat runs/exp1/pid)" \
-  --log runs/exp1/train.log
+curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/master/install.sh | bash
 ```
 
-`wait_for.sh`는 5분 간격(조절 가능)으로 확인하고, 하니스가 활동을 인식하도록
-heartbeat 한 줄씩 출력하며, 다음 종료 코드로 반환됩니다:
+설치 프로그램은 기존 `goal-watch`, `wait_for.sh` 및 관련 `AGENTS.md` 규칙을
+완전히 제거한 뒤 OneTurn marketplace와 플러그인을 설치합니다.
 
-| 종료 코드 | 의미 |
-|-----------|------|
-| `0` | 완료 — 마커 파일 생성 / `--until` 명령 성공 |
-| `1` | 실패 — 로그에서 오류 패턴 발견, `--fail-if` 충족, 또는 프로세스가 완료 전에 종료 |
-| `124` | `--max-wait` 도달, 아직 실행 중 — 다시 실행하면 계속 대기 |
+설치 후:
 
-### 옵션
+1. Codex Desktop 또는 CLI를 다시 시작합니다.
+2. CLI에서 `/hooks`를 열어 OneTurn의 두 hook을 검토하고 신뢰합니다.
+3. 새 task에서 사용합니다. 설치 이전에 열려 있던 task에는 새 Skill과 MCP 도구가
+   나타나지 않을 수 있습니다.
 
-```
---done-file PATH      PATH가 생기면 성공
---until "CMD"         CMD가 exit 0이면 성공
---fail-if "CMD"       CMD가 exit 0이면 실패
---log FILE            FILE에서 오류 패턴 감시
---error-regex REGEX   오류로 간주할 패턴 (기본값: Traceback/OOM/NaN/RuntimeError 등)
---pid PID             프로세스 종료 감지
---interval SECONDS    내부 폴링 간격 (기본 300)
---max-wait SECONDS    이 시간이 지나면 exit 124로 반환 (기본: 무제한 대기)
---tail N              실패 시 출력할 로그 줄 수 (기본 50)
---quiet               heartbeat 출력 생략
+## 사용하는 두 가지 방법
+
+### 1. Ask
+
+평소처럼 장기 작업을 요청합니다.
+
+```text
+전체 테스트를 실행하고 실패한 부분을 모두 고쳐줘.
 ```
 
-### 추가 레시피
+OneTurn Skill이 장기 작업을 감지하면 실행 전에 묻습니다.
 
-```bash
-# HTTP 서비스가 뜰 때까지 1분 간격으로 대기
-wait_for.sh --until "curl -sf http://localhost:8000/health" --interval 60
-
-# Slurm job이 큐에서 빠질 때까지 대기
-wait_for.sh --until '! squeue -j 998877 -h | grep -q .' --interval 600
-
-# 끊어서 대기 (shell tool 타임아웃에 안전): exit 124가 나오면 에이전트가
-# 같은 턴 안에서 재실행 — 폴링하러 턴을 끝내는 일이 없음
-wait_for.sh --done-file DONE --log train.log --interval 60 --max-wait 240 --quiet
+```text
+이 작업은 오래 걸릴 수 있습니다. OneTurn으로 실행할까요?
+사용하려면 “OneTurn으로 실행”이라고 답해주세요.
 ```
 
-> **왜 끊어서 대기하나?** Codex의 shell tool에는 명령별 `timeout_ms`가 있고,
-> 모델이 몇 시간짜리 대기에 맞게 충분히 크게 설정해준다는 보장이 없습니다.
-> 대기 호출 하나를 4분 이내로 유지하고 exit 124가 나오면 같은 턴 안에서
-> 재실행하는 방식은 이 타임아웃과 무관하게 동작하면서도, 폴링을 위해 턴을
-> 끝내는 일은 여전히 없습니다. SKILL.md가 에이전트에게 정확히 이 동작을
-> 지시합니다.
+사용자가 명시적으로 승인한 이후에만 OneTurn이 활성화됩니다.
 
-## 폴링 자체를 없애는 방법
+### 2. 직접 명시
 
-job이 어차피 Codex 세션보다 오래 살아있다면, goal로 감시하지 말고 job이 끝나는
-순간 Codex를 호출하는 게 가장 쌉니다:
+최초 요청에 직접 적으면 확인 질문을 생략합니다.
 
-```bash
-python train.py --config exp1.yaml
-codex exec "exp1 학습이 끝났다. 결과를 확인하고 다음 variant를 시작해."
+```text
+OneTurn으로 빌드와 전체 테스트를 완료하고 결과까지 검증해줘.
 ```
+
+또는 Skill을 명시적으로 선택합니다.
+
+```text
+$one-turn 세 가지 학습 variant를 순서대로 실행하고 결과를 비교해줘.
+```
+
+Auto 모드는 없습니다. Ask 승인이나 직접 명시 없이 자동으로 활성화되지 않습니다.
+
+## 실행 권한과 보안
+
+- 명령은 shell 문자열이 아니라 argv 배열로 실행됩니다.
+- Codex의 MCP 도구 승인을 통해 실행 명령을 확인합니다.
+- 작업 디렉터리 밖의 artifact 검증은 거부합니다.
+- API key와 ChatGPT 로그인 정보에 접근하지 않습니다.
+- 외부 네트워크 요청을 자체적으로 만들지 않습니다.
+- 출력은 로컬 plugin data 디렉터리에 기록하고 마지막 64KiB만 모델에 반환합니다.
+- Esc로 tool call을 취소하면 child process group도 종료합니다.
+- hook 오류 또는 세 번의 completion block 이후에는 턴을 안전하게 해제합니다.
+
+## 현재 범위
+
+- 하나의 Codex 프로세스와 세션이 살아 있는 동안 같은 turn ID 유지
+- 로컬 단일 프로세스 실행
+- exit code, deadline 및 필수 artifact 검증
+- 사용자 취소
+- macOS와 Linux
+
+사용자가 시간을 따로 지정하지 않으면 각 OneTurn `run`의 기본 deadline은
+**7일(604,800초)**입니다. 더 짧은 시간이 명시되면 해당 값을 우선 적용합니다.
+
+Codex가 종료되거나 crash되면 동일 turn ID 복구는 보장하지 않습니다. “한 논리적
+턴”은 모델 호출이 전체 작업에서 한 번뿐이라는 의미도 아닙니다. 코드 분석과 오류
+수정에는 모델이 다시 실행될 수 있지만, 장기 프로세스를 기다리는 동안에는 호출되지
+않습니다.
 
 ## 제거
 
 ```bash
-rm -rf ~/.codex/skills/goal-watch
+./install.sh --uninstall
+```
+
+원격 설치만 사용한 경우:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/master/install.sh | bash -s -- --uninstall
+```
+
+프로젝트 결과물과 OneTurn job 로그는 자동으로 삭제하지 않습니다.
+
+## 개발 검증
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-one-turn
 ```
 
 ## 라이선스

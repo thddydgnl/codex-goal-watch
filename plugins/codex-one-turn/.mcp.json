@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "one-turn": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["mcp/server.py"],
+      "cwd": ".",
+      "startup_timeout_sec": 10,
+      "tool_timeout_sec": 604800,
+      "default_tools_approval_mode": "prompt"
+    }
+  }
+}

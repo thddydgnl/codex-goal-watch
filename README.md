@@ -1,141 +1,123 @@
-# codex-goal-watch
+# Codex OneTurn
 
-**Stop Codex `/goal` from burning your rate limit on "still running" polls.**
+Keep long-running local jobs in one logical Codex turn without repeated
+“still running” Goal continuations or model polling.
 
-[한국어 README](README.ko.md)
+[한국어](README.ko.md) · [Project vision (Korean)](docs/PROJECT_VISION.ko.md)
 
-## The problem
+> Unofficial community project. Not affiliated with or endorsed by OpenAI.
 
-Codex `/goal` continues work at turn boundaries. When a goal involves waiting
-for something slow — a model training run, a long build, a deploy — the default
-behavior looks like this:
+## Choose the next README
 
+Five GitHub-ready README concepts are available for review:
+
+1. [Global Launch](docs/readme-options/README-01-GLOBAL-LAUNCH.md) — recommended for international discovery
+2. [Korean Story](docs/readme-options/README-02-KOREAN-STORY.md) — Korean-first problem and creator story
+3. [Engineering Trust](docs/readme-options/README-03-ENGINEERING-TRUST.md) — architecture, guarantees, and security
+4. [Minimal](docs/readme-options/README-04-MINIMAL.md) — concise bilingual presentation
+5. [Community](docs/readme-options/README-05-COMMUNITY.md) — contributions and early adopter validation
+
+[Compare all five concepts →](docs/readme-options/README.md)
+
+## How it works
+
+```text
+Codex model
+  → OneTurn run tool
+  → local process ─────────────────→ terminal event
+       0 model calls while waiting
+       0 extra Goal turns
+  → analyze in the same Codex turn
+  → final verification
+  → OneTurn finish
+  → turn ends
 ```
-worked for 30s   → "job is still running, heartbeat OK"
-worked for 1m21s → "still running, not stalled"
-worked for 29s   → "no errors yet, keeping goal monitoring"
-worked for 2m25s → "waiting for the first checkpoint"
-...
-```
 
-Dozens of short wake-up turns, each consuming tokens and requests, each
-producing nothing but "still running". There is no config option to change
-this cadence — it's how goal continuation works.
+The bundled MCP `run` call remains open until the process completes, fails, is
+cancelled, or reaches its deadline. A Stop hook prevents premature completion
+and continues the same turn ID, with a three-block fail-open safety limit.
 
-## The fix
+## Requirements
 
-`goal-watch` is an [Agent Skill](https://agentskills.io) that moves the wait
-*inside* a single turn. Instead of ending the turn and re-checking, Codex runs
-one blocking command — `wait_for.sh` — that polls internally and only returns
-when the job **finished**, **failed**, or a **max-wait budget** expired.
-
-One turn per wait, not one turn per poll.
+- Codex CLI 0.133.0 or newer
+- macOS or Linux
+- Python 3.10 or newer
+- Codex hooks enabled (the default)
 
 ## Install
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash
-```
-
-**Recommended:** also add an always-on rule to `~/.codex/AGENTS.md`, so the
-no-polling behavior applies to *every* goal deterministically — skill
-auto-discovery matches your request against the skill description, which is
-reliable but probabilistic, while AGENTS.md is loaded into every session:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/main/install.sh | bash -s -- --agents-md
-```
-
-Or manually:
+From a clone:
 
 ```bash
 git clone https://github.com/thddydgnl/codex-goal-watch.git
-cd codex-goal-watch && ./install.sh --agents-md
+cd codex-goal-watch
+./install.sh
 ```
 
-This copies the skill to `~/.codex/skills/goal-watch` (respects `$CODEX_HOME`).
-The AGENTS.md block is marker-delimited and idempotent; delete the block to
-undo. No dependencies beyond bash and coreutils; works on macOS and Linux.
-
-## Use
-
-Once installed, Codex picks the skill up automatically whenever a goal
-involves babysitting a long job. You can also invoke it explicitly:
-
-```
-/goal-watch
-/goal Train all three variants of Idea 1 sequentially, then run strict finalization
-```
-
-The skill teaches Codex to write waits like this:
+One-line install:
 
 ```bash
-nohup python train.py --config exp1.yaml > runs/exp1/train.log 2>&1 &
-echo $! > runs/exp1/pid
-~/.codex/skills/goal-watch/scripts/wait_for.sh \
-  --done-file runs/exp1/DONE \
-  --pid "$(cat runs/exp1/pid)" \
-  --log runs/exp1/train.log
+curl -fsSL https://raw.githubusercontent.com/thddydgnl/codex-goal-watch/master/install.sh | bash
 ```
 
-`wait_for.sh` checks every 5 minutes (configurable), prints a heartbeat line
-so the harness sees activity, and exits with:
+The installer removes the old `goal-watch` Skill, `wait_for.sh`, and its
+`AGENTS.md` block before installing the OneTurn marketplace and plugin.
 
-| Exit code | Meaning |
-|-----------|---------|
-| `0` | done — marker file appeared / `--until` command succeeded |
-| `1` | failed — error regex matched the log, `--fail-if` fired, or the pid died before finishing |
-| `124` | `--max-wait` reached while still running — rerun to keep waiting |
+After installation, restart Codex, open `/hooks`, review and trust the two
+OneTurn hooks, then start a new task so the bundled Skill and MCP tools load.
 
-### Options
+## Two activation paths
 
-```
---done-file PATH      succeed when PATH exists
---until "CMD"         succeed when CMD exits 0
---fail-if "CMD"       fail when CMD exits 0
---log FILE            watch FILE for error patterns
---error-regex REGEX   what counts as an error (default covers Traceback/OOM/NaN/RuntimeError)
---pid PID             react when the process exits
---interval SECONDS    internal poll interval (default 300)
---max-wait SECONDS    give up with exit 124 after this long (default: wait forever)
---tail N              log lines to dump on failure (default 50)
---quiet               no heartbeat lines
+Ask: request a long job normally. The Skill asks before activating OneTurn.
+Reply with `Run with OneTurn` or `OneTurn으로 실행` to approve it.
+
+Direct: include OneTurn in the initial request:
+
+```text
+Use OneTurn to run the full build and test suite, fix failures, and verify the result.
 ```
 
-### More recipes
+Or explicitly invoke the Skill:
 
-```bash
-# Wait for an HTTP service to come up, checking every minute
-wait_for.sh --until "curl -sf http://localhost:8000/health" --interval 60
-
-# Wait for a Slurm job to leave the queue
-wait_for.sh --until '! squeue -j 998877 -h | grep -q .' --interval 600
-
-# Chunked waiting (robust against shell-tool timeouts): the agent re-runs
-# this in the same turn on exit 124 — the turn never ends just to poll
-wait_for.sh --done-file DONE --log train.log --interval 60 --max-wait 240 --quiet
+```text
+$one-turn run all three training variants and compare the results.
 ```
 
-> **Why chunked?** Codex's shell tool has its own per-command `timeout_ms`,
-> and the model doesn't always set it high enough for a multi-hour wait.
-> Keeping each wait call under ~4 minutes and re-running on exit 124 inside
-> the same turn is immune to that, while still never ending a turn to poll.
-> The SKILL.md instructs the agent to do exactly this.
+There is no Auto mode. OneTurn activates only after Ask approval or explicit
+wording.
 
-## Zero-polling alternative
+## Security
 
-If your job outlives your Codex session anyway, skip goal babysitting
-entirely and trigger Codex when the job ends:
+- Commands run as argv arrays, never shell strings.
+- Codex prompts for approval on the MCP execution tool.
+- Artifact checks cannot escape the requested working directory.
+- The plugin does not access ChatGPT credentials or API keys.
+- The plugin makes no network requests of its own.
+- Cancelling the tool terminates the child process group.
+- Hook errors and repeated completion blocks fail open.
 
-```bash
-python train.py --config exp1.yaml
-codex exec "Training for exp1 finished — check the results and start the next variant."
-```
+## Limits
+
+The same-turn guarantee applies while the Codex process and session stay alive.
+Restart recovery and Windows support are not part of v0.1. Multiple model calls
+may still occur for analysis and fixes; the guarantee is zero model polling
+while a managed process is running.
+
+When the user does not specify a duration, each OneTurn `run` uses a default
+deadline of **7 days (604,800 seconds)**. A shorter explicit deadline takes
+precedence.
 
 ## Uninstall
 
 ```bash
-rm -rf ~/.codex/skills/goal-watch
+./install.sh --uninstall
+```
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-one-turn
 ```
 
 ## License
